@@ -10,6 +10,7 @@ class ClaudeProcess: ObservableObject {
     var skipPermissions: Bool = true
     @Published var effort: String = "low"
     @Published var selectedModel: String = "opus"
+    var workingDirectory: String = FileManager.default.currentDirectoryPath
 
     private var process: Process?
 
@@ -36,6 +37,7 @@ class ClaudeProcess: ObservableObject {
         args.append(contentsOf: ["--effort", effort])
         args.append(contentsOf: ["--model", selectedModel])
         proc.arguments = args
+        proc.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
         proc.standardInput = stdinP
         proc.standardOutput = stdoutP
         proc.standardError = stderrP

@@ -21,6 +21,11 @@ struct ChatView: View {
                 Text(claude.isRunning ? "응답 중..." : "대기")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                Text(claude.workingDirectory.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
                 if !claude.errorText.isEmpty {
                     Text("stderr: \(claude.errorText.prefix(100))")
                         .font(.caption2)
@@ -59,21 +64,28 @@ struct ChatView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     ScrollViewFinder(scrollView: $scrollProxy)
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(messages.enumerated().reversed()), id: \.element.id) { index, message in
                             HStack(alignment: .top, spacing: 8) {
                                 Text(message.content)
                                     .font(.system(size: fontSize))
                                     .foregroundColor(message.role == .user ? .secondary : .primary)
                                     .textSelection(.enabled)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .opacity(message.isDisabled ? 0.3 : 1.0)
+                            .padding(.vertical, 8)
                             .background(
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(message.role == .user
+                                        ? Color.primary.opacity(0.06)
+                                        : Color.primary.opacity(0.03))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
                                     .stroke(cursorIndex == index ? Color.accentColor : Color.clear, lineWidth: 2)
                             )
+                            .opacity(message.isDisabled ? 0.3 : 1.0)
                             .overlay(
                                 OptionClickOverlay {
                                     messages[index].isDisabled.toggle()
@@ -87,19 +99,26 @@ struct ChatView: View {
                                 .font(.system(size: fontSize))
                                 .foregroundColor(.secondary)
                                 .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.primary.opacity(0.03))
+                                )
                                 .id("streaming")
                         }
                     }
                     .padding(.vertical, 8)
+                    .scaleEffect(x: 1, y: -1)
                 }
+                .scaleEffect(x: 1, y: -1)
                 .onChange(of: streamingText) {
-                    proxy.scrollTo("streaming", anchor: .bottom)
+                    proxy.scrollTo("streaming", anchor: .top)
                 }
                 .onChange(of: messages.count) {
                     if let last = messages.last {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+                        proxy.scrollTo(last.id, anchor: .top)
                     }
                 }
             }
@@ -128,6 +147,9 @@ struct ChatView: View {
             return .handled
         }
         .onAppear {
+            if CommandLine.arguments.count > 1 {
+                claude.workingDirectory = CommandLine.arguments[1]
+            }
             scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 guard event.modifierFlags.contains(.control),
                       (event.keyCode == 2 || event.keyCode == 32),
@@ -135,10 +157,10 @@ struct ChatView: View {
                 let delta = fontSize * 1.4 * 10
                 let clipView = sv.contentView
                 var origin = clipView.bounds.origin
-                if event.keyCode == 2 { // d
-                    origin.y = min(origin.y + delta, (sv.documentView?.frame.height ?? 0) - clipView.bounds.height)
-                } else { // u
+                if event.keyCode == 2 { // d (scaleEffect y:-1 반전)
                     origin.y = max(origin.y - delta, 0)
+                } else { // u (scaleEffect y:-1 반전)
+                    origin.y = min(origin.y + delta, (sv.documentView?.frame.height ?? 0) - clipView.bounds.height)
                 }
                 clipView.scroll(to: origin)
                 sv.reflectScrolledClipView(clipView)
