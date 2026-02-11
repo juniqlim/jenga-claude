@@ -9,6 +9,7 @@ struct ChatView: View {
     @AppStorage("fontSize") private var fontSize: Double = 14
     @State private var scrollProxy: NSScrollView?
     @State private var cursorIndex: Int?
+    @State private var scrollMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -126,19 +127,28 @@ struct ChatView: View {
             claude.stop()
             return .handled
         }
-        .onKeyPress(characters: CharacterSet(charactersIn: "ud"), phases: .down) { press in
-            guard press.modifiers == .control, let sv = scrollProxy else { return .ignored }
-            let lineHeight = fontSize * 1.4
-            let delta = lineHeight * 5
-            let clipView = sv.contentView
-            var origin = clipView.bounds.origin
-            if press.characters == "d" {
-                origin.y = min(origin.y + delta, (sv.documentView?.frame.height ?? 0) - clipView.bounds.height)
-            } else {
-                origin.y = max(origin.y - delta, 0)
+        .onAppear {
+            scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                guard event.modifierFlags.contains(.control),
+                      (event.keyCode == 2 || event.keyCode == 32),
+                      let sv = scrollProxy else { return event }
+                let delta = fontSize * 1.4 * 10
+                let clipView = sv.contentView
+                var origin = clipView.bounds.origin
+                if event.keyCode == 2 { // d
+                    origin.y = min(origin.y + delta, (sv.documentView?.frame.height ?? 0) - clipView.bounds.height)
+                } else { // u
+                    origin.y = max(origin.y - delta, 0)
+                }
+                clipView.scroll(to: origin)
+                sv.reflectScrolledClipView(clipView)
+                return nil
             }
-            clipView.setBoundsOrigin(origin)
-            return .handled
+        }
+        .onDisappear {
+            if let monitor = scrollMonitor {
+                NSEvent.removeMonitor(monitor)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .cycleModel)) { _ in
             switch claude.selectedModel {

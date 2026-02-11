@@ -9,7 +9,7 @@ class ClaudeProcess: ObservableObject {
     @Published var errorText: String = ""
     var skipPermissions: Bool = true
     @Published var effort: String = "low"
-    var selectedModel: String = "opus"
+    @Published var selectedModel: String = "opus"
 
     private var process: Process?
 
