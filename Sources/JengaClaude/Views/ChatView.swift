@@ -11,9 +11,9 @@ struct ChatView: View {
             // 상태 표시
             HStack {
                 Circle()
-                    .fill(claude.isRunning ? Color.green : Color.red)
+                    .fill(claude.isRunning ? Color.green : Color.gray)
                     .frame(width: 8, height: 8)
-                Text(claude.model ?? (claude.isRunning ? "준비됨" : "연결 중..."))
+                Text(claude.isRunning ? "응답 중..." : "대기")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 if !claude.errorText.isEmpty {
@@ -73,9 +73,6 @@ struct ChatView: View {
             .padding()
         }
         .frame(minWidth: 500, minHeight: 400)
-        .onAppear {
-            claude.start()
-        }
         .onChange(of: claude.responseText) {
             if !claude.responseText.isEmpty {
                 streamingText = claude.responseText

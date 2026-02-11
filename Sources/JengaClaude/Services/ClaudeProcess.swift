@@ -2,20 +2,18 @@ import Foundation
 
 @MainActor
 class ClaudeProcess: ObservableObject {
-    @Published var sessionId: String?
     @Published var model: String?
     @Published var responseText: String = ""
     @Published var hasResult: Bool = false
     @Published var isRunning: Bool = false
-    @Published var events: [ClaudeEvent] = []
     @Published var errorText: String = ""
 
     private var process: Process?
-    private var stdinPipe: Pipe?
-    private var stdoutBuffer = ""
-    private var stderrBuffer = ""
 
-    func start() {
+    func send(message: String) {
+        // 이전 프로세스가 있으면 종료
+        process?.terminate()
+
         let proc = Process()
         let stdinP = Pipe()
         let stdoutP = Pipe()
@@ -34,19 +32,44 @@ class ClaudeProcess: ObservableObject {
         proc.standardError = stderrP
 
         self.process = proc
-        self.stdinPipe = stdinP
+        self.responseText = ""
+        self.hasResult = false
         self.isRunning = true
+        self.errorText = ""
 
-        // stdout 비동기 읽기
+        var stdoutBuffer = ""
+
         stdoutP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
             Task { @MainActor [weak self] in
-                self?.processStdout(chunk)
+                guard let self else { return }
+                stdoutBuffer += chunk
+                let lines = stdoutBuffer.split(separator: "\n", omittingEmptySubsequences: false)
+                stdoutBuffer = String(lines.last ?? "")
+                for line in lines.dropLast() {
+                    let parsed = ClaudeEvent.parse(line: String(line))
+                    for event in parsed {
+                        switch event {
+                        case .`init`(_, let m):
+                            self.model = m
+                        case .assistant(let text):
+                            self.responseText += text
+                        case .toolUse(let toolName, _, _):
+                            self.responseText += "\n[Tool: \(toolName)]"
+                        case .result(_, _, _):
+                            self.hasResult = true
+                            self.isRunning = false
+                            self.process?.terminate()
+                            self.process = nil
+                        case .unknown:
+                            break
+                        }
+                    }
+                }
             }
         }
 
-        // stderr 비동기 읽기
         stderrP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
@@ -63,57 +86,26 @@ class ClaudeProcess: ObservableObject {
 
         do {
             try proc.run()
+            // 메시지 전송
+            let payload: [String: Any] = [
+                "type": "user",
+                "message": ["role": "user", "content": message],
+                "session_id": "default",
+                "parent_tool_use_id": NSNull(),
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: payload),
+               let jsonStr = String(data: data, encoding: .utf8) {
+                stdinP.fileHandleForWriting.write((jsonStr + "\n").data(using: .utf8)!)
+            }
         } catch {
             isRunning = false
             errorText = "Failed to start claude: \(error.localizedDescription)"
         }
     }
 
-    private func processStdout(_ chunk: String) {
-        stdoutBuffer += chunk
-        let lines = stdoutBuffer.split(separator: "\n", omittingEmptySubsequences: false)
-        stdoutBuffer = String(lines.last ?? "")
-        let completeLines = lines.dropLast()
-        for line in completeLines {
-            let parsed = ClaudeEvent.parse(line: String(line))
-            for event in parsed {
-                events.append(event)
-                switch event {
-                case .`init`(let sid, let m):
-                    sessionId = sid
-                    model = m
-                case .assistant(let text):
-                    responseText += text
-                case .toolUse(let toolName, _, _):
-                    responseText += "\n[Tool: \(toolName)]"
-                case .result(_, _, _):
-                    hasResult = true
-                case .unknown:
-                    break
-                }
-            }
-        }
-    }
-
-    func send(message: String) {
-        guard let stdinPipe else { return }
-        let payload: [String: Any] = [
-            "type": "user",
-            "message": ["role": "user", "content": message],
-            "session_id": sessionId ?? "default",
-            "parent_tool_use_id": NSNull(),
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let jsonStr = String(data: data, encoding: .utf8)
-        else { return }
-        let line = jsonStr + "\n"
-        stdinPipe.fileHandleForWriting.write(line.data(using: .utf8)!)
-    }
-
     func stop() {
         process?.terminate()
         process = nil
-        stdinPipe = nil
         isRunning = false
     }
 }
