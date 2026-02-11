@@ -91,10 +91,18 @@ struct ChatView: View {
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
+
+        // 아직 저장되지 않은 스트리밍 응답이 있으면 먼저 저장
+        if !streamingText.isEmpty {
+            messages.append(Message(role: .assistant, content: streamingText))
+            streamingText = ""
+            claude.responseText = ""
+            claude.hasResult = false
+        }
+
         let history = messages
         messages.append(Message(role: .user, content: text))
         claude.send(message: text, history: history)
         inputText = ""
-        streamingText = ""
     }
 }
