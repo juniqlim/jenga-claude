@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ChatView: View {
     @StateObject private var claude = ClaudeProcess()
@@ -22,6 +23,10 @@ struct ChatView: View {
                         .foregroundColor(.red)
                 }
                 Spacer()
+                Button("활성만 복사") { copyMessages(activeOnly: true) }
+                    .font(.caption)
+                Button("전체 복사") { copyMessages(activeOnly: false) }
+                    .font(.caption)
                 Toggle("전체 권한", isOn: $claude.skipPermissions)
                     .toggleStyle(.switch)
                     .font(.caption)
@@ -32,9 +37,66 @@ struct ChatView: View {
 
             Divider()
 
-            // 메시지 목록 (NSTextView로 여러 메시지 걸쳐 드래그 선택 가능)
-            ConversationTextView(messages: messages, streamingText: streamingText)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 메시지 목록 (체크박스 + 개별 메시지)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                            HStack(alignment: .top, spacing: 8) {
+                                Toggle("", isOn: Binding(
+                                    get: { !messages[index].isDisabled },
+                                    set: { messages[index].isDisabled = !$0 }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .labelsHidden()
+
+                                if index < 9 {
+                                    Text("⌘\(index + 1)")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 24)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(message.role == .user ? "나" : "Claude")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(message.content)
+                                        .font(.body)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .opacity(message.isDisabled ? 0.3 : 1.0)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                messages[index].isDisabled.toggle()
+                            }
+                        }
+
+                        // 스트리밍 중인 응답
+                        if !streamingText.isEmpty {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Claude")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(streamingText)
+                                    .font(.body)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .id("streaming")
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .onChange(of: streamingText) {
+                    proxy.scrollTo("streaming", anchor: .bottom)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 
@@ -50,7 +112,7 @@ struct ChatView: View {
             .padding()
         }
         .frame(minWidth: 500, minHeight: 400)
-        .background(deleteShortcuts)
+        .background(toggleShortcuts)
         .onChange(of: claude.responseText) {
             if !claude.responseText.isEmpty {
                 streamingText = claude.responseText
@@ -67,11 +129,11 @@ struct ChatView: View {
     }
 
     @ViewBuilder
-    private var deleteShortcuts: some View {
+    private var toggleShortcuts: some View {
         ForEach(0..<9, id: \.self) { i in
             Button("") {
                 if i < messages.count {
-                    messages.remove(at: i)
+                    messages[i].isDisabled.toggle()
                 }
             }
             .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
@@ -79,11 +141,16 @@ struct ChatView: View {
         }
     }
 
+    private func copyMessages(activeOnly: Bool) {
+        let text = Message.copyText(messages, activeOnly: activeOnly)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
 
-        // 아직 저장되지 않은 스트리밍 응답이 있으면 먼저 저장
         if !streamingText.isEmpty {
             messages.append(Message(role: .assistant, content: streamingText))
             streamingText = ""
@@ -91,7 +158,7 @@ struct ChatView: View {
             claude.hasResult = false
         }
 
-        let history = messages
+        let history = messages.filter { !$0.isDisabled }
         messages.append(Message(role: .user, content: text))
         claude.send(message: text, history: history)
         inputText = ""
