@@ -91,8 +91,9 @@ struct ChatView: View {
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
+        let history = messages
         messages.append(Message(role: .user, content: text))
-        claude.send(message: text)
+        claude.send(message: text, history: history)
         inputText = ""
         streamingText = ""
     }

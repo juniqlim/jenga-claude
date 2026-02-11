@@ -10,7 +10,7 @@ class ClaudeProcess: ObservableObject {
 
     private var process: Process?
 
-    func send(message: String) {
+    func send(message: String, history: [Message] = []) {
         // 이전 프로세스가 있으면 종료
         process?.terminate()
 
@@ -86,10 +86,11 @@ class ClaudeProcess: ObservableObject {
 
         do {
             try proc.run()
-            // 메시지 전송
+            // 히스토리를 포함한 프롬프트 생성
+            let fullMessage = ConversationFormatter.format(history: history, newMessage: message)
             let payload: [String: Any] = [
                 "type": "user",
-                "message": ["role": "user", "content": message],
+                "message": ["role": "user", "content": fullMessage],
                 "session_id": "default",
                 "parent_tool_use_id": NSNull(),
             ]
