@@ -113,6 +113,15 @@ struct ChatView: View {
         }
         .frame(minWidth: 500, minHeight: 400)
         .background(toggleShortcuts)
+        .onKeyPress(.escape) {
+            guard claude.isRunning else { return .ignored }
+            if !streamingText.isEmpty {
+                messages.append(Message(role: .assistant, content: streamingText))
+                streamingText = ""
+            }
+            claude.stop()
+            return .handled
+        }
         .onChange(of: claude.responseText) {
             if !claude.responseText.isEmpty {
                 streamingText = claude.responseText
