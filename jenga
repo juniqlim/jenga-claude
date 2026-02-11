@@ -39,4 +39,4 @@ PLIST
   touch "$APP"
 fi
 
-open -a "$APP" --args "$PWD"
+open -n -a "$APP" --args "$PWD"
