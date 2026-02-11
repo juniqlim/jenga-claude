@@ -11,6 +11,11 @@ struct JengaClaudeApp: App {
         }
         .commands {
             CommandMenu("Jenga") {
+                Button("Model 전환") {
+                    NotificationCenter.default.post(name: .cycleModel, object: nil)
+                }
+                .keyboardShortcut("m", modifiers: .command)
+
                 Button("Effort 전환") {
                     NotificationCenter.default.post(name: .cycleEffort, object: nil)
                 }
@@ -38,6 +43,7 @@ struct JengaClaudeApp: App {
 }
 
 extension Notification.Name {
+    static let cycleModel = Notification.Name("cycleModel")
     static let cycleEffort = Notification.Name("cycleEffort")
     static let toggleAll = Notification.Name("toggleAll")
     static let copyActive = Notification.Name("copyActive")

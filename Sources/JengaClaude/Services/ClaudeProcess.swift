@@ -9,6 +9,7 @@ class ClaudeProcess: ObservableObject {
     @Published var errorText: String = ""
     var skipPermissions: Bool = true
     @Published var effort: String = "low"
+    var selectedModel: String = "opus"
 
     private var process: Process?
 
@@ -33,6 +34,7 @@ class ClaudeProcess: ObservableObject {
             args.append("--dangerously-skip-permissions")
         }
         args.append(contentsOf: ["--effort", effort])
+        args.append(contentsOf: ["--model", selectedModel])
         proc.arguments = args
         proc.standardInput = stdinP
         proc.standardOutput = stdoutP

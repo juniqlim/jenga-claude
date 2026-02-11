@@ -30,13 +30,20 @@ struct ChatView: View {
                     .font(.caption)
                 Button("전체 복사") { copyMessages(activeOnly: false) }
                     .font(.caption)
+                Picker("", selection: $claude.selectedModel) {
+                    Text("sonnet").tag("sonnet")
+                    Text("opus").tag("opus")
+                    Text("haiku").tag("haiku")
+                }
+                .labelsHidden()
+                .fixedSize()
                 Picker("", selection: $claude.effort) {
                     Text("low").tag("low")
                     Text("mid").tag("medium")
                     Text("high").tag("high")
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 150)
+                .labelsHidden()
+                .fixedSize()
                 Toggle("전체 권한", isOn: $claude.skipPermissions)
                     .toggleStyle(.switch)
                     .font(.caption)
@@ -66,10 +73,11 @@ struct ChatView: View {
                                 RoundedRectangle(cornerRadius: 4)
                                     .stroke(cursorIndex == index ? Color.accentColor : Color.clear, lineWidth: 2)
                             )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                messages[index].isDisabled.toggle()
-                            }
+                            .overlay(
+                                OptionClickOverlay {
+                                    messages[index].isDisabled.toggle()
+                                }
+                            )
                         }
 
                         // 스트리밍 중인 응답
@@ -99,16 +107,11 @@ struct ChatView: View {
             Divider()
 
             // 입력창
-            HStack {
-                TextField("메시지를 입력하세요...", text: $inputText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: fontSize))
-                    .onSubmit { sendMessage() }
-                Button("전송") { sendMessage() }
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .padding()
+            TextField("메시지를 입력하세요...", text: $inputText)
+                .textFieldStyle(.plain)
+                .font(.system(size: fontSize))
+                .onSubmit { sendMessage() }
+                .padding()
         }
         .frame(minWidth: 500, minHeight: 400)
         .background(toggleShortcuts)
@@ -136,6 +139,13 @@ struct ChatView: View {
             }
             clipView.setBoundsOrigin(origin)
             return .handled
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cycleModel)) { _ in
+            switch claude.selectedModel {
+            case "opus": claude.selectedModel = "sonnet"
+            case "sonnet": claude.selectedModel = "haiku"
+            default: claude.selectedModel = "opus"
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .cycleEffort)) { _ in
             switch claude.effort {
@@ -247,6 +257,46 @@ struct ChatView: View {
         messages.append(Message(role: .user, content: text))
         claude.send(message: text, history: history)
         inputText = ""
+    }
+}
+
+/// Option+클릭만 가로채고 나머지 이벤트는 통과시키는 투명 오버레이
+private struct OptionClickOverlay: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> OptionClickView {
+        let view = OptionClickView()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ nsView: OptionClickView, context: Context) {
+        nsView.action = action
+    }
+}
+
+private class OptionClickView: NSView {
+    var action: (() -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.option) {
+            action?()
+        } else {
+            super.mouseDown(with: event)
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let event = NSApp.currentEvent,
+              event.type == .leftMouseDown,
+              event.modifierFlags.contains(.option) else {
+            return nil  // Option 없으면 이벤트 통과
+        }
+        return super.hitTest(point)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .arrow)
     }
 }
 
