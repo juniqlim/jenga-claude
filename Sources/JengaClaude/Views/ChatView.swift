@@ -256,6 +256,16 @@ struct ChatView: View {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
 
+        if text == "/cl" {
+            messages.removeAll()
+            streamingText = ""
+            claude.responseText = ""
+            claude.hasResult = false
+            cursorIndex = nil
+            inputText = ""
+            return
+        }
+
         if !streamingText.isEmpty {
             messages.append(Message(role: .assistant, content: streamingText))
             streamingText = ""
