@@ -32,38 +32,9 @@ struct ChatView: View {
 
             Divider()
 
-            // 메시지 목록
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                            MessageView(message: message, index: index) {
-                                messages.remove(at: index)
-                            }
-                        }
-                        if !streamingText.isEmpty {
-                            HStack {
-                                Text(streamingText)
-                                    .padding(10)
-                                    .background(Color.gray.opacity(0.2))
-                                    .cornerRadius(12)
-                                    .textSelection(.enabled)
-                                Spacer()
-                            }
-                            .id("streaming")
-                        }
-                    }
-                    .padding()
-                }
-                .onChange(of: streamingText) {
-                    proxy.scrollTo("streaming", anchor: .bottom)
-                }
-                .onChange(of: messages.count) {
-                    if let last = messages.last {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
-                }
-            }
+            // 메시지 목록 (NSTextView로 여러 메시지 걸쳐 드래그 선택 가능)
+            ConversationTextView(messages: messages, streamingText: streamingText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 
