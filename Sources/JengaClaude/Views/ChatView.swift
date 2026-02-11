@@ -6,6 +6,8 @@ struct ChatView: View {
     @State private var inputText = ""
     @State private var messages: [Message] = []
     @State private var streamingText = ""
+    @AppStorage("fontSize") private var fontSize: Double = 14
+    @State private var scrollProxy: NSScrollView?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,6 +29,13 @@ struct ChatView: View {
                     .font(.caption)
                 Button("전체 복사") { copyMessages(activeOnly: false) }
                     .font(.caption)
+                Picker("", selection: $claude.effort) {
+                    Text("low").tag("low")
+                    Text("mid").tag("medium")
+                    Text("high").tag("high")
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
                 Toggle("전체 권한", isOn: $claude.skipPermissions)
                     .toggleStyle(.switch)
                     .font(.caption)
@@ -40,6 +49,7 @@ struct ChatView: View {
             // 메시지 목록 (체크박스 + 개별 메시지)
             ScrollViewReader { proxy in
                 ScrollView {
+                    ScrollViewFinder(scrollView: $scrollProxy)
                     LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             HStack(alignment: .top, spacing: 8) {
@@ -62,7 +72,7 @@ struct ChatView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                     Text(message.content)
-                                        .font(.body)
+                                        .font(.system(size: fontSize))
                                         .textSelection(.enabled)
                                 }
                             }
@@ -82,7 +92,7 @@ struct ChatView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text(streamingText)
-                                    .font(.body)
+                                    .font(.system(size: fontSize))
                                     .textSelection(.enabled)
                             }
                             .padding(.horizontal, 12)
@@ -95,6 +105,11 @@ struct ChatView: View {
                 .onChange(of: streamingText) {
                     proxy.scrollTo("streaming", anchor: .bottom)
                 }
+                .onChange(of: messages.count) {
+                    if let last = messages.last {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -104,6 +119,7 @@ struct ChatView: View {
             HStack {
                 TextField("메시지를 입력하세요...", text: $inputText)
                     .textFieldStyle(.plain)
+                    .font(.system(size: fontSize))
                     .onSubmit { sendMessage() }
                 Button("전송") { sendMessage() }
                     .keyboardShortcut(.return, modifiers: .command)
@@ -113,6 +129,8 @@ struct ChatView: View {
         }
         .frame(minWidth: 500, minHeight: 400)
         .background(toggleShortcuts)
+        .background(fontSizeShortcuts)
+        .background(copyShortcuts)
         .onKeyPress(.escape) {
             guard claude.isRunning else { return .ignored }
             if !streamingText.isEmpty {
@@ -120,6 +138,20 @@ struct ChatView: View {
                 streamingText = ""
             }
             claude.stop()
+            return .handled
+        }
+        .onKeyPress(characters: CharacterSet(charactersIn: "ud"), phases: .down) { press in
+            guard press.modifiers == .control, let sv = scrollProxy else { return .ignored }
+            let lineHeight = fontSize * 1.4
+            let delta = lineHeight * 5
+            let clipView = sv.contentView
+            var origin = clipView.bounds.origin
+            if press.characters == "d" {
+                origin.y = min(origin.y + delta, (sv.documentView?.frame.height ?? 0) - clipView.bounds.height)
+            } else {
+                origin.y = max(origin.y - delta, 0)
+            }
+            clipView.setBoundsOrigin(origin)
             return .handled
         }
         .onChange(of: claude.responseText) {
@@ -150,6 +182,26 @@ struct ChatView: View {
         }
     }
 
+    @ViewBuilder
+    private var copyShortcuts: some View {
+        Button("") { copyMessages(activeOnly: true) }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .hidden()
+        Button("") { copyMessages(activeOnly: false) }
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+            .hidden()
+    }
+
+    @ViewBuilder
+    private var fontSizeShortcuts: some View {
+        Button("") { fontSize = min(fontSize + 2, 40) }
+            .keyboardShortcut("+", modifiers: .command)
+            .hidden()
+        Button("") { fontSize = max(fontSize - 2, 8) }
+            .keyboardShortcut("-", modifiers: .command)
+            .hidden()
+    }
+
     private func copyMessages(activeOnly: Bool) {
         let text = Message.copyText(messages, activeOnly: activeOnly)
         NSPasteboard.general.clearContents()
@@ -172,4 +224,19 @@ struct ChatView: View {
         claude.send(message: text, history: history)
         inputText = ""
     }
+}
+
+/// SwiftUI ScrollView 내부의 NSScrollView 참조를 캡처
+private struct ScrollViewFinder: NSViewRepresentable {
+    @Binding var scrollView: NSScrollView?
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            self.scrollView = view.enclosingScrollView
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

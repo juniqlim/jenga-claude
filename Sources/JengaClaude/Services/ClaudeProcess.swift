@@ -8,6 +8,7 @@ class ClaudeProcess: ObservableObject {
     @Published var isRunning: Bool = false
     @Published var errorText: String = ""
     var skipPermissions: Bool = true
+    var effort: String = "high"
 
     private var process: Process?
 
@@ -31,6 +32,7 @@ class ClaudeProcess: ObservableObject {
         if skipPermissions {
             args.append("--dangerously-skip-permissions")
         }
+        args.append(contentsOf: ["--effort", effort])
         proc.arguments = args
         proc.standardInput = stdinP
         proc.standardOutput = stdoutP
