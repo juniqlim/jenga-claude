@@ -16,6 +16,7 @@ struct MessageView: View {
                 .background(message.role == .user ? Color.blue : Color.gray.opacity(0.2))
                 .foregroundColor(message.role == .user ? .white : .primary)
                 .cornerRadius(12)
+                .textSelection(.enabled)
 
             if message.role == .assistant { deleteLabel }
 

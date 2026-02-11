@@ -22,6 +22,10 @@ struct ChatView: View {
                         .foregroundColor(.red)
                 }
                 Spacer()
+                Toggle("전체 권한", isOn: $claude.skipPermissions)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+                    .controlSize(.mini)
             }
             .padding(.horizontal)
             .padding(.vertical, 6)

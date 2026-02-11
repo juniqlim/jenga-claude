@@ -7,6 +7,7 @@ class ClaudeProcess: ObservableObject {
     @Published var hasResult: Bool = false
     @Published var isRunning: Bool = false
     @Published var errorText: String = ""
+    var skipPermissions: Bool = true
 
     private var process: Process?
 
@@ -20,13 +21,17 @@ class ClaudeProcess: ObservableObject {
         let stderrP = Pipe()
 
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        proc.arguments = [
+        var args = [
             "claude",
             "--print",
             "--output-format", "stream-json",
             "--input-format", "stream-json",
             "--verbose",
         ]
+        if skipPermissions {
+            args.append("--dangerously-skip-permissions")
+        }
+        proc.arguments = args
         proc.standardInput = stdinP
         proc.standardOutput = stdoutP
         proc.standardError = stderrP
