@@ -91,7 +91,7 @@ class ClaudeProcess: ObservableObject {
             let payload: [String: Any] = [
                 "type": "user",
                 "message": ["role": "user", "content": fullMessage],
-                "session_id": "default",
+                "session_id": UUID().uuidString,
                 "parent_tool_use_id": NSNull(),
             ]
             if let data = try? JSONSerialization.data(withJSONObject: payload),

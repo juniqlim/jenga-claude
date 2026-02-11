@@ -32,8 +32,10 @@ struct ChatView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(messages) { message in
-                            MessageView(message: message)
+                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                            MessageView(message: message, index: index) {
+                                messages.remove(at: index)
+                            }
                         }
                         if !streamingText.isEmpty {
                             HStack {
@@ -73,6 +75,7 @@ struct ChatView: View {
             .padding()
         }
         .frame(minWidth: 500, minHeight: 400)
+        .background(deleteShortcuts)
         .onChange(of: claude.responseText) {
             if !claude.responseText.isEmpty {
                 streamingText = claude.responseText
@@ -85,6 +88,19 @@ struct ChatView: View {
                 claude.responseText = ""
                 claude.hasResult = false
             }
+        }
+    }
+
+    @ViewBuilder
+    private var deleteShortcuts: some View {
+        ForEach(0..<9, id: \.self) { i in
+            Button("") {
+                if i < messages.count {
+                    messages.remove(at: i)
+                }
+            }
+            .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
+            .hidden()
         }
     }
 
