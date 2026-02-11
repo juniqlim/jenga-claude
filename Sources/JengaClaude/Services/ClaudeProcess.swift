@@ -8,7 +8,7 @@ class ClaudeProcess: ObservableObject {
     @Published var isRunning: Bool = false
     @Published var errorText: String = ""
     var skipPermissions: Bool = true
-    var effort: String = "high"
+    @Published var effort: String = "low"
 
     private var process: Process?
 

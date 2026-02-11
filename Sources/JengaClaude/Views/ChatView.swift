@@ -8,6 +8,7 @@ struct ChatView: View {
     @State private var streamingText = ""
     @AppStorage("fontSize") private var fontSize: Double = 14
     @State private var scrollProxy: NSScrollView?
+    @State private var cursorIndex: Int?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,32 +54,18 @@ struct ChatView: View {
                     LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             HStack(alignment: .top, spacing: 8) {
-                                Toggle("", isOn: Binding(
-                                    get: { !messages[index].isDisabled },
-                                    set: { messages[index].isDisabled = !$0 }
-                                ))
-                                .toggleStyle(.checkbox)
-                                .labelsHidden()
-
-                                if index < 9 {
-                                    Text("⌘\(index + 1)")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 24)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(message.role == .user ? "나" : "Claude")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(message.content)
-                                        .font(.system(size: fontSize))
-                                        .textSelection(.enabled)
-                                }
+                                Text(message.content)
+                                    .font(.system(size: fontSize))
+                                    .foregroundColor(message.role == .user ? .secondary : .primary)
+                                    .textSelection(.enabled)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
                             .opacity(message.isDisabled ? 0.3 : 1.0)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(cursorIndex == index ? Color.accentColor : Color.clear, lineWidth: 2)
+                            )
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 messages[index].isDisabled.toggle()
@@ -87,17 +74,13 @@ struct ChatView: View {
 
                         // 스트리밍 중인 응답
                         if !streamingText.isEmpty {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Claude")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(streamingText)
-                                    .font(.system(size: fontSize))
-                                    .textSelection(.enabled)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .id("streaming")
+                            Text(streamingText)
+                                .font(.system(size: fontSize))
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .id("streaming")
                         }
                     }
                     .padding(.vertical, 8)
@@ -130,7 +113,7 @@ struct ChatView: View {
         .frame(minWidth: 500, minHeight: 400)
         .background(toggleShortcuts)
         .background(fontSizeShortcuts)
-        .background(copyShortcuts)
+        .background(toggleAllShortcut)
         .onKeyPress(.escape) {
             guard claude.isRunning else { return .ignored }
             if !streamingText.isEmpty {
@@ -153,6 +136,25 @@ struct ChatView: View {
             }
             clipView.setBoundsOrigin(origin)
             return .handled
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cycleEffort)) { _ in
+            switch claude.effort {
+            case "low": claude.effort = "medium"
+            case "medium": claude.effort = "high"
+            default: claude.effort = "low"
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleAll)) { _ in
+            let allActive = messages.allSatisfy { !$0.isDisabled }
+            for i in messages.indices {
+                messages[i].isDisabled = allActive
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .copyActive)) { _ in
+            copyMessages(activeOnly: true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .copyAll)) { _ in
+            copyMessages(activeOnly: false)
         }
         .onChange(of: claude.responseText) {
             if !claude.responseText.isEmpty {
@@ -183,13 +185,35 @@ struct ChatView: View {
     }
 
     @ViewBuilder
-    private var copyShortcuts: some View {
-        Button("") { copyMessages(activeOnly: true) }
-            .keyboardShortcut("c", modifiers: [.command, .shift])
-            .hidden()
-        Button("") { copyMessages(activeOnly: false) }
-            .keyboardShortcut("a", modifiers: [.command, .shift])
-            .hidden()
+    private var toggleAllShortcut: some View {
+        Button("") {
+            guard !messages.isEmpty else { return }
+            let current = cursorIndex ?? -1
+            cursorIndex = min(current + 1, messages.count - 1)
+        }
+        .keyboardShortcut(.downArrow, modifiers: [.command, .shift])
+        .hidden()
+        Button("") {
+            guard !messages.isEmpty else { return }
+            let current = cursorIndex ?? 0
+            cursorIndex = max(current - 1, 0)
+        }
+        .keyboardShortcut(.upArrow, modifiers: [.command, .shift])
+        .hidden()
+        Button("") {
+            if let i = cursorIndex, i < messages.count {
+                messages[i].isDisabled.toggle()
+            }
+        }
+        .keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
+        .hidden()
+        Button("") {
+            if let i = cursorIndex, i < messages.count {
+                messages[i].isDisabled.toggle()
+            }
+        }
+        .keyboardShortcut(.leftArrow, modifiers: [.command, .shift])
+        .hidden()
     }
 
     @ViewBuilder
