@@ -13,7 +13,9 @@ BINARY="$JENGA_DIR/.build/arm64-apple-macosx/debug/JengaClaude"
 # .app 번들 생성 (없거나 바이너리가 더 새로우면)
 if [ ! -d "$APP" ] || [ "$BINARY" -nt "$APP/Contents/MacOS/JengaClaude" ]; then
   mkdir -p "$APP/Contents/MacOS"
+  mkdir -p "$APP/Contents/Resources"
   cp "$BINARY" "$APP/Contents/MacOS/JengaClaude"
+  cp "$JENGA_DIR/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
   cat > "$APP/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -25,6 +27,8 @@ if [ ! -d "$APP" ] || [ "$BINARY" -nt "$APP/Contents/MacOS/JengaClaude" ]; then
   <string>com.juniqlim.JengaClaude</string>
   <key>CFBundleName</key>
   <string>JengaClaude</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSUIElement</key>
@@ -35,4 +39,4 @@ PLIST
   touch "$APP"
 fi
 
-open -n -a "$APP" --args "$PWD"
+open -a "$APP" --args "$PWD"
