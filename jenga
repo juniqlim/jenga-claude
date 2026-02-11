@@ -1,0 +1,38 @@
+#!/bin/bash
+SOURCE="$0"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+JENGA_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+
+APP="$JENGA_DIR/.build/JengaClaude.app"
+BINARY="$JENGA_DIR/.build/arm64-apple-macosx/debug/JengaClaude"
+
+# .app 번들 생성 (없거나 바이너리가 더 새로우면)
+if [ ! -d "$APP" ] || [ "$BINARY" -nt "$APP/Contents/MacOS/JengaClaude" ]; then
+  mkdir -p "$APP/Contents/MacOS"
+  cp "$BINARY" "$APP/Contents/MacOS/JengaClaude"
+  cat > "$APP/Contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>JengaClaude</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.juniqlim.JengaClaude</string>
+  <key>CFBundleName</key>
+  <string>JengaClaude</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSUIElement</key>
+  <false/>
+</dict>
+</plist>
+PLIST
+  touch "$APP"
+fi
+
+open -n -a "$APP" --args "$PWD"
